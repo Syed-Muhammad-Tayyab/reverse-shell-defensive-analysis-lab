@@ -23,7 +23,7 @@
 ---
 
 > [!CAUTION]
-> **Defensive training repository only.** The case study describes a Python script designed to accept remote data, pass it to a local shell, return output, and attempt to delete its own file. Do **not** run the sample, launch a listener for it, package it as an executable, conceal it, or test it on a device or network without explicit written authorization. This repository intentionally focuses on safe static analysis, evidence handling, telemetry review, and incident reporting.
+> **Defensive training repository only.** The case study describes a Python script designed to accept remote data, pass it to a local shell, return output, and attempt to delete its own file. Do **not** run the sample, launch a listener for it, package it as an executable, conceal it, or test it on a device or network without explicit written authorization. The operational payload is intentionally not included. Instead, `samples/payload.py` is a harmless simulator that prints a list of indicators for training; it does not open sockets, execute shell commands, or delete files. This repository focuses on safe static analysis, evidence handling, telemetry review, and incident reporting.
 
 ## 📌 Table of contents
 
@@ -35,6 +35,7 @@
 - [Step 1 — Preserve and hash the archive](#step-1--preserve-and-hash-the-archive)
 - [Step 2 — Inspect the ZIP without running its contents](#step-2--inspect-the-zip-without-running-its-contents)
 - [Step 3 — Review source code as text](#step-3--review-source-code-as-text)
+- [Safe `payload.py` training simulator](#-safe-payloadpy-training-simulator)
 - [Step 4 — Build a telemetry hypothesis](#step-4--build-a-telemetry-hypothesis)
 - [Step 5 — Investigate logs on an authorized endpoint](#step-5--investigate-logs-on-an-authorized-endpoint)
 - [Step 6 — Write the finding](#step-6--write-the-finding)
@@ -51,7 +52,7 @@
 
 This lab helps learners investigate a suspicious Python ZIP file using a **static-first workflow**. It is intended for cybersecurity students, junior SOC analysts, incident responders, and blue-team practitioners who want to practice describing behavior using evidence rather than assumptions.
 
-The case-study code includes several high-signal patterns:
+The case study describes several high-signal patterns an analyst should look for in an untrusted sample:
 
 | Code pattern | What it can mean | What an analyst should validate |
 |---|---|---|
@@ -83,6 +84,8 @@ reverse-shell-defensive-analysis-lab/
 ├── docs/
 │   ├── reverse_shell_defensive_analysis_guide.pdf
 │   └── reverse_shell_defensive_analysis_guide.pptx
+├── samples/
+│   └── payload.py     # Harmless simulator; not a working reverse shell
 ├── evidence/       # Keep local case evidence out of public Git repositories
 ├── reports/        # Store sanitized, non-sensitive reports here
 └── templates/      # Add your sanitized report templates here
@@ -212,7 +215,93 @@ grep -nE '([0-9]{1,3}\.){3}[0-9]{1,3}|PORT|https?://|/tmp/|/var/tmp/' \
 These are triage searches, not a verdict. A matching keyword is only a lead; document the surrounding source context and validate it against telemetry. The example address `192.168.1.100` is in private IPv4 address space and is not, by itself, proof of attacker identity or public Internet infrastructure.
 
 > [!WARNING]
-> Do not run `python3 payload.py`, start a Netcat listener for this sample, wrap it as an EXE, rename it for stealth, or deploy it to another machine. This repository intentionally excludes those operational steps.
+> Do not run `payload.py` extracted from an untrusted archive, start a listener for it, package it as an executable, rename it for stealth, or deploy it to another machine. The working operational payload is intentionally excluded. The repository's `samples/payload.py` is a separate, harmless simulator.
+
+## 🧪 Safe `payload.py` training simulator
+
+You were right to look for a Python file. This repository now includes [`samples/payload.py`](samples/payload.py), a **non-operational training substitute**. It prints analyst notes about suspicious code patterns, but it does not import networking or process-execution libraries, make connections, run shell commands, or delete any files. It is not the original live payload.
+
+### Review and run the simulator on Kali Linux
+
+```bash
+# From the repository root, inspect it as text first
+sed -n '1,220p' samples/payload.py
+
+# Run the harmless simulator (prints indicators only)
+python3 samples/payload.py
+
+# Save its synthetic output for your notes
+python3 samples/payload.py | tee simulator-output.txt
+```
+
+### Full source of `samples/payload.py`
+
+```python
+#!/usr/bin/env python3
+"""Harmless reverse-shell indicator simulator for blue-team training.
+
+This is NOT a reverse shell and does not reproduce the operational payload.
+It performs no network communication, executes no system commands, and does
+not read or delete files. It only prints a static list of code patterns that
+an analyst may encounter during source review.
+"""
+
+from __future__ import annotations
+
+import json
+
+INDICATORS = [
+    {
+        "source_pattern": "socket.connect((SERVER_IP, SERVER_PORT))",
+        "analyst_note": (
+            "Could indicate an outbound connection attempt; validate the actual "
+            "destination, port, process, timestamp, and network context."
+        ),
+    },
+    {
+        "source_pattern": "recv(...)",
+        "analyst_note": (
+            "Inspect how received bytes are interpreted and whether they are "
+            "treated as commands or ordinary application data."
+        ),
+    },
+    {
+        "source_pattern": "subprocess.Popen(..., shell=True)",
+        "analyst_note": (
+            "Review for shell invocation and correlate with process-tree and "
+            "command-line telemetry. This simulator does not call Popen."
+        ),
+    },
+    {
+        "source_pattern": "send(...)",
+        "analyst_note": (
+            "Could indicate data being sent to a peer; inspect direction, "
+            "destination, volume, and process attribution."
+        ),
+    },
+    {
+        "source_pattern": "os.remove(__file__)",
+        "analyst_note": (
+            "Could indicate an attempt to delete the script path; validate "
+            "file-system telemetry. This simulator deletes nothing."
+        ),
+    },
+]
+
+
+def main() -> int:
+    """Print synthetic indicators without performing any of their behaviors."""
+    print("SAFE TRAINING SIMULATOR")
+    print("Network access: none | Shell execution: none | File deletion: none\n")
+    print(json.dumps({"simulation_only": True, "indicators": INDICATORS}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+**Important:** This is deliberately not the operational reverse-shell code described in the case study. Use it to practice reading source, discussing indicators, and writing detection hypotheses.
 
 ## Step 4 — Build a telemetry hypothesis
 
@@ -453,14 +542,14 @@ From the project directory, after creating an empty repository on GitHub with th
 
 ```bash
 git init
-git add README.md .gitignore docs/ templates/ evidence/README.txt reports/README.txt
+git add README.md .gitignore docs/ templates/ samples/payload.py evidence/README.txt reports/README.txt
 git commit -m "Add defensive reverse-shell analysis lab guide"
 git branch -M main
 git remote add origin https://github.com/YOUR_GITHUB_USERNAME/reverse-shell-defensive-analysis-lab.git
 git push -u origin main
 ```
 
-Review `git status` and `git diff --cached` before pushing. The example stages only the README and guide documents, not local `evidence/` or `reports/` folders. Never force-add sensitive files.
+Review `git status` and `git diff --cached` before pushing. The example stages the README, guide documents, safe simulator, and placeholder files, not local case data under `evidence/` or `reports/`. Never force-add sensitive files.
 
 ## 🌟 Suggested repository name and GitHub topics
 
