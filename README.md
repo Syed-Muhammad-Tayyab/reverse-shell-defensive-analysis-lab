@@ -6,6 +6,7 @@
 <img src="https://img.shields.io/badge/INCIDENT%20RESPONSE-7C3AED?style=for-the-badge" alt="Incident response" />
 
 # 🛡️ Reverse-Shell Defensive Analysis Lab
+By : Syed Muhammad Tayyab
 
 ### A practical, evidence-led investigation guide for aspiring SOC analysts and blue-team learners
 
